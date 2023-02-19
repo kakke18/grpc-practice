@@ -27,7 +27,7 @@ func main() {
 	conn, err := grpc.Dial(
 		address,
 		grpc.WithTransportCredentials(insecure.NewCredentials()), // コネクションでSSL/TLSを使用しない
-		grpc.WithBlock(), // コネクションが確立されるまで待機する（同期処理をする）
+		grpc.WithBlock(),                                         // コネクションが確立されるまで待機する（同期処理をする）
 	)
 	if err != nil {
 		log.Fatalf("Connection failed. err:%s\n", err)
@@ -41,7 +41,8 @@ func main() {
 	for {
 		fmt.Printf("1: send Request\n")
 		fmt.Printf("2: HelloServerStream\n")
-		fmt.Printf("3: exit\n")
+		fmt.Printf("3: HelloClientStream\n")
+		fmt.Printf("4: exit\n")
 		fmt.Printf("pleace enter >")
 
 		input := getInputString(scanner)
@@ -66,6 +67,15 @@ func main() {
 
 			return
 		case "3":
+			res, err := helloClientStream(ctx, scanner, client)
+			if err != nil {
+				fmt.Printf("err:%s\n", err)
+			}
+
+			fmt.Printf("res:%s\n", res)
+
+			return
+		case "4":
 			fmt.Printf("bye.\n")
 			return
 		default:
@@ -118,6 +128,31 @@ func helloServerStream(ctx context.Context, scanner *bufio.Scanner, client hello
 	}
 
 	return res, nil
+}
+
+func helloClientStream(ctx context.Context, scanner *bufio.Scanner, client hellopb.GreetingServiceClient) (string, error) {
+	stream, err := client.HelloClientStream(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	seedCount := 5
+	fmt.Printf("Please enter %d names.\n", seedCount)
+	for i := 0; i < seedCount; i++ {
+		name := getInputString(scanner)
+		if err := stream.Send(&hellopb.HelloRequest{
+			Name: name,
+		}); err != nil {
+			return "", err
+		}
+	}
+
+	res, err := stream.CloseAndRecv()
+	if err != nil {
+		return "", err
+	}
+
+	return res.GetMessage(), nil
 }
 
 func getInputString(scanner *bufio.Scanner) string {
