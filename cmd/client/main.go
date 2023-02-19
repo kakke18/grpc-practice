@@ -3,7 +3,9 @@ package main
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"log"
 	"os"
 
@@ -25,7 +27,7 @@ func main() {
 	conn, err := grpc.Dial(
 		address,
 		grpc.WithTransportCredentials(insecure.NewCredentials()), // コネクションでSSL/TLSを使用しない
-		grpc.WithBlock(),                                         // コネクションが確立されるまで待機する（同期処理をする）
+		grpc.WithBlock(), // コネクションが確立されるまで待機する（同期処理をする）
 	)
 	if err != nil {
 		log.Fatalf("Connection failed. err:%s\n", err)
@@ -38,7 +40,8 @@ func main() {
 	// 入力待ち状態にする
 	for {
 		fmt.Printf("1: send Request\n")
-		fmt.Printf("2: exit\n")
+		fmt.Printf("2: HelloServerStream\n")
+		fmt.Printf("3: exit\n")
 		fmt.Printf("pleace enter >")
 
 		input := getInputString(scanner)
@@ -54,6 +57,15 @@ func main() {
 
 			return
 		case "2":
+			res, err := helloServerStream(ctx, scanner, client)
+			if err != nil {
+				fmt.Printf("err:%s\n", err)
+			}
+
+			fmt.Printf("res:%+v\n", res)
+
+			return
+		case "3":
 			fmt.Printf("bye.\n")
 			return
 		default:
@@ -76,6 +88,36 @@ func hello(ctx context.Context, scanner *bufio.Scanner, client hellopb.GreetingS
 	}
 
 	return res.GetMessage(), nil
+}
+
+func helloServerStream(ctx context.Context, scanner *bufio.Scanner, client hellopb.GreetingServiceClient) ([]string, error) {
+	fmt.Println("Please enter your name.")
+
+	name := getInputString(scanner)
+	req := &hellopb.HelloRequest{
+		Name: name,
+	}
+	stream, err := client.HelloServerStream(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	var res []string
+	for {
+		helloRes, err := stream.Recv()
+		if errors.Is(err, io.EOF) {
+			fmt.Println("all the responses have already received.")
+			break
+		}
+
+		if err != nil {
+			return nil, err
+		}
+
+		res = append(res, helloRes.GetMessage())
+	}
+
+	return res, nil
 }
 
 func getInputString(scanner *bufio.Scanner) string {
