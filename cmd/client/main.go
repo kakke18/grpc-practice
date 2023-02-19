@@ -27,7 +27,7 @@ func main() {
 	conn, err := grpc.Dial(
 		address,
 		grpc.WithTransportCredentials(insecure.NewCredentials()), // コネクションでSSL/TLSを使用しない
-		grpc.WithBlock(),                                         // コネクションが確立されるまで待機する（同期処理をする）
+		grpc.WithBlock(), // コネクションが確立されるまで待機する（同期処理をする）
 	)
 	if err != nil {
 		log.Fatalf("Connection failed. err:%s\n", err)
@@ -42,7 +42,8 @@ func main() {
 		fmt.Printf("1: send Request\n")
 		fmt.Printf("2: HelloServerStream\n")
 		fmt.Printf("3: HelloClientStream\n")
-		fmt.Printf("4: exit\n")
+		fmt.Printf("4: HelloBiStream\n")
+		fmt.Printf("5: exit\n")
 		fmt.Printf("pleace enter >")
 
 		input := getInputString(scanner)
@@ -76,6 +77,15 @@ func main() {
 
 			return
 		case "4":
+			res, err := helloBiStream(ctx, scanner, client)
+			if err != nil {
+				fmt.Printf("err:%s\n", err)
+			}
+
+			fmt.Printf("res:%s\n", res)
+
+			return
+		case "5":
 			fmt.Printf("bye.\n")
 			return
 		default:
@@ -153,6 +163,57 @@ func helloClientStream(ctx context.Context, scanner *bufio.Scanner, client hello
 	}
 
 	return res.GetMessage(), nil
+}
+
+func helloBiStream(ctx context.Context, scanner *bufio.Scanner, client hellopb.GreetingServiceClient) ([]string, error) {
+	stream, err := client.HelloBiStreams(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	seedCount := 5
+	fmt.Printf("Please enter %d names.\n", seedCount)
+
+	var (
+		res              []string
+		sendEnd, recvEnd bool
+		sendCount        int
+	)
+	for !(sendEnd && recvEnd) {
+		// 送信処理
+		if !sendEnd {
+			name := getInputString(scanner)
+			sendCount++
+			if err := stream.Send(&hellopb.HelloRequest{
+				Name: name,
+			}); err != nil {
+				return nil, err
+			}
+
+			if sendCount == seedCount {
+				sendEnd = true
+				if err := stream.CloseSend(); err != nil {
+					return nil, err
+				}
+			}
+		}
+
+		// 受信処理
+		helloRes, err := stream.Recv()
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				recvEnd = true
+				break
+			}
+			return nil, err
+		}
+
+		fmt.Printf("message=%s\n", helloRes.GetMessage())
+		res = append(res, helloRes.GetMessage())
+	}
+
+	return res, nil
+
 }
 
 func getInputString(scanner *bufio.Scanner) string {
