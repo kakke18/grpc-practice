@@ -12,8 +12,11 @@ import (
 	"time"
 
 	hellopb "github.com/kakke18/grpc-practice/pkg/grpc"
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/reflection"
+	"google.golang.org/grpc/status"
 )
 
 func main() {
@@ -55,9 +58,20 @@ func newMyServer() *myServer {
 
 // Hello Unary RPCがレスポンスを返す
 func (s *myServer) Hello(_ context.Context, req *hellopb.HelloRequest) (*hellopb.HelloResponse, error) {
-	// reqからnameフィールドを取り出してresを生成
+	name := req.GetName()
+	if name == "unknown" {
+		// "unknown"とリクエストされたらエラーを返すようにする
+		stat := status.New(codes.Unknown, "unknown error occurred")
+		stat, _ = stat.WithDetails(&errdetails.DebugInfo{
+			StackEntries: nil,
+			Detail:       "detail reason of error",
+		})
+
+		return nil, stat.Err()
+	}
+
 	return &hellopb.HelloResponse{
-		Message: fmt.Sprintf("Hello, %s!", req.GetName()),
+		Message: fmt.Sprintf("Hello, %s!", name),
 	}, nil
 }
 

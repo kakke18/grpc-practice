@@ -10,8 +10,10 @@ import (
 	"os"
 
 	hellopb "github.com/kakke18/grpc-practice/pkg/grpc"
+	_ "google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 )
 
 func main() {
@@ -104,6 +106,9 @@ func hello(ctx context.Context, scanner *bufio.Scanner, client hellopb.GreetingS
 	}
 	res, err := client.Hello(ctx, req)
 	if err != nil {
+		if stat, ok := status.FromError(err); ok {
+			return "", fmt.Errorf("code: %s, message: %s, details: %s", stat.Code(), stat.Message(), stat.Details())
+		}
 		return "", err
 	}
 
