@@ -41,64 +41,34 @@ func main() {
 
 	// 入力待ち状態にする
 	for {
-		fmt.Printf("1: send Request\n")
-		fmt.Printf("2: HelloServerStream\n")
-		fmt.Printf("3: HelloClientStream\n")
-		fmt.Printf("4: HelloBiStream\n")
-		fmt.Printf("5: exit\n")
-		fmt.Printf("pleace enter >")
+		fmt.Println("1    : send Request")
+		fmt.Println("2    : HelloServerStream")
+		fmt.Println("3    : HelloClientStream")
+		fmt.Println("4    : HelloBiStream")
+		fmt.Println("other: exit")
+		fmt.Printf("pleace enter > ")
 
 		input := getInputString(scanner)
 
 		switch input {
 		case "1":
-			res, err := hello(ctx, scanner, client)
-			if err != nil {
-				fmt.Printf("err:%s\n", err)
-			}
-
-			fmt.Printf("res:%s\n", res)
-
-			return
+			hello(ctx, scanner, client)
 		case "2":
-			res, err := helloServerStream(ctx, scanner, client)
-			if err != nil {
-				fmt.Printf("err:%s\n", err)
-			}
-
-			fmt.Printf("res:%+v\n", res)
-
-			return
+			helloServerStream(ctx, scanner, client)
 		case "3":
-			res, err := helloClientStream(ctx, scanner, client)
-			if err != nil {
-				fmt.Printf("err:%s\n", err)
-			}
-
-			fmt.Printf("res:%s\n", res)
-
-			return
+			helloClientStream(ctx, scanner, client)
 		case "4":
-			res, err := helloBiStream(ctx, scanner, client)
-			if err != nil {
-				fmt.Printf("err:%s\n", err)
-			}
-
-			fmt.Printf("res:%s\n", res)
-
-			return
-		case "5":
-			fmt.Printf("bye.\n")
-			return
+			helloBiStream(ctx, scanner, client)
 		default:
-			fmt.Printf("unexpected input. bye.\n")
-			return
+			fmt.Println("bye.")
 		}
+
+		return
 	}
 }
 
-func hello(ctx context.Context, scanner *bufio.Scanner, client hellopb.GreetingServiceClient) (string, error) {
-	fmt.Printf("Please enter your name.\n")
+func hello(ctx context.Context, scanner *bufio.Scanner, client hellopb.GreetingServiceClient) {
+	fmt.Printf("please enter your name > ")
 
 	name := getInputString(scanner)
 	req := &hellopb.HelloRequest{
@@ -107,16 +77,18 @@ func hello(ctx context.Context, scanner *bufio.Scanner, client hellopb.GreetingS
 	res, err := client.Hello(ctx, req)
 	if err != nil {
 		if stat, ok := status.FromError(err); ok {
-			return "", fmt.Errorf("code: %s, message: %s, details: %s", stat.Code(), stat.Message(), stat.Details())
+			fmt.Printf("code: %s, message: %s, details: %s\n", stat.Code(), stat.Message(), stat.Details())
+		} else {
+			fmt.Printf("err: %s\n", err.Error())
 		}
-		return "", err
+		return
 	}
 
-	return res.GetMessage(), nil
+	fmt.Printf("res: %s\n", res.GetMessage())
 }
 
-func helloServerStream(ctx context.Context, scanner *bufio.Scanner, client hellopb.GreetingServiceClient) ([]string, error) {
-	fmt.Println("Please enter your name.")
+func helloServerStream(ctx context.Context, scanner *bufio.Scanner, client hellopb.GreetingServiceClient) {
+	fmt.Printf("please enter your name > ")
 
 	name := getInputString(scanner)
 	req := &hellopb.HelloRequest{
@@ -124,31 +96,30 @@ func helloServerStream(ctx context.Context, scanner *bufio.Scanner, client hello
 	}
 	stream, err := client.HelloServerStream(ctx, req)
 	if err != nil {
-		return nil, err
+		fmt.Printf("err: %s\n", err.Error())
+		return
 	}
 
-	var res []string
 	for {
-		helloRes, err := stream.Recv()
-		if errors.Is(err, io.EOF) {
-			fmt.Println("all the responses have already received.")
-			break
-		}
-
+		res, err := stream.Recv()
 		if err != nil {
-			return nil, err
+			if errors.Is(err, io.EOF) {
+				fmt.Println("all the responses have already received.")
+			} else {
+				fmt.Printf("err: %s\n", err.Error())
+			}
+			return
 		}
 
-		res = append(res, helloRes.GetMessage())
+		fmt.Printf("res: %s\n", res.GetMessage())
 	}
-
-	return res, nil
 }
 
-func helloClientStream(ctx context.Context, scanner *bufio.Scanner, client hellopb.GreetingServiceClient) (string, error) {
+func helloClientStream(ctx context.Context, scanner *bufio.Scanner, client hellopb.GreetingServiceClient) {
 	stream, err := client.HelloClientStream(ctx)
 	if err != nil {
-		return "", err
+		fmt.Printf("err: %s\n", err.Error())
+		return
 	}
 
 	seedCount := 5
@@ -158,29 +129,31 @@ func helloClientStream(ctx context.Context, scanner *bufio.Scanner, client hello
 		if err := stream.Send(&hellopb.HelloRequest{
 			Name: name,
 		}); err != nil {
-			return "", err
+			fmt.Printf("err: %s\n", err.Error())
+			return
 		}
 	}
 
 	res, err := stream.CloseAndRecv()
 	if err != nil {
-		return "", err
+		fmt.Printf("err: %s\n", err.Error())
+		return
 	}
 
-	return res.GetMessage(), nil
+	fmt.Printf("res: %s\n", res.GetMessage())
 }
 
-func helloBiStream(ctx context.Context, scanner *bufio.Scanner, client hellopb.GreetingServiceClient) ([]string, error) {
+func helloBiStream(ctx context.Context, scanner *bufio.Scanner, client hellopb.GreetingServiceClient) {
 	stream, err := client.HelloBiStreams(ctx)
 	if err != nil {
-		return nil, err
+		fmt.Printf("err: %s\n", err.Error())
+		return
 	}
 
 	seedCount := 5
 	fmt.Printf("Please enter %d names.\n", seedCount)
 
 	var (
-		res              []string
 		sendEnd, recvEnd bool
 		sendCount        int
 	)
@@ -192,33 +165,32 @@ func helloBiStream(ctx context.Context, scanner *bufio.Scanner, client hellopb.G
 			if err := stream.Send(&hellopb.HelloRequest{
 				Name: name,
 			}); err != nil {
-				return nil, err
+				fmt.Printf("err: %s\n", err.Error())
+				return
 			}
 
 			if sendCount == seedCount {
 				sendEnd = true
 				if err := stream.CloseSend(); err != nil {
-					return nil, err
+					fmt.Printf("err: %s\n", err.Error())
+					return
 				}
 			}
 		}
 
 		// 受信処理
-		helloRes, err := stream.Recv()
+		res, err := stream.Recv()
 		if err != nil {
 			if errors.Is(err, io.EOF) {
-				recvEnd = true
-				break
+				fmt.Println("all the responses have already received.")
+			} else {
+				fmt.Printf("err: %s\n", err.Error())
 			}
-			return nil, err
+			return
 		}
 
-		fmt.Printf("message=%s\n", helloRes.GetMessage())
-		res = append(res, helloRes.GetMessage())
+		fmt.Printf("res: %s\n", res.GetMessage())
 	}
-
-	return res, nil
-
 }
 
 func getInputString(scanner *bufio.Scanner) string {
