@@ -28,7 +28,16 @@ func main() {
 	}
 
 	// gRPCサーバーを作成し、自作サービスを登録
-	server := grpc.NewServer()
+	server := grpc.NewServer(
+		grpc.ChainUnaryInterceptor(
+			myUnaryServerInterceptor1,
+			myUnaryServerInterceptor2,
+		),
+		grpc.ChainStreamInterceptor(
+			myStreamServerInterceptor1,
+			myStreamServerInterceptor2,
+		),
+	)
 	hellopb.RegisterGreetingServiceServer(server, newMyServer())
 
 	// gRPCurlを使うために、サーバリフレクションの設定
