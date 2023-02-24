@@ -13,6 +13,7 @@ import (
 	_ "google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 
@@ -82,7 +83,14 @@ func hello(ctx context.Context, scanner *bufio.Scanner, client hellopb.GreetingS
 	req := &hellopb.HelloRequest{
 		Name: name,
 	}
-	res, err := client.Hello(ctx, req)
+	md := metadata.New(map[string]string{
+		"type": "unary",
+		"from": "client",
+	})
+	ctx = metadata.NewOutgoingContext(ctx, md)
+
+	var header, trailer metadata.MD
+	res, err := client.Hello(ctx, req, grpc.Header(&header), grpc.Trailer(&trailer))
 	if err != nil {
 		if stat, ok := status.FromError(err); ok {
 			fmt.Printf("code: %s, message: %s, details: %s\n", stat.Code(), stat.Message(), stat.Details())
@@ -92,7 +100,7 @@ func hello(ctx context.Context, scanner *bufio.Scanner, client hellopb.GreetingS
 		return
 	}
 
-	fmt.Printf("res: %s\n", res.GetMessage())
+	fmt.Printf("header: %+v, trailer: %+v, res: %s\n", header, trailer, res.GetMessage())
 }
 
 func helloServerStream(ctx context.Context, scanner *bufio.Scanner, client hellopb.GreetingServiceClient) {
@@ -152,6 +160,12 @@ func helloClientStream(ctx context.Context, scanner *bufio.Scanner, client hello
 }
 
 func helloBiStream(ctx context.Context, scanner *bufio.Scanner, client hellopb.GreetingServiceClient) {
+	md := metadata.New(map[string]string{
+		"type": "stream",
+		"from": "client",
+	})
+	ctx = metadata.NewOutgoingContext(ctx, md)
+
 	stream, err := client.HelloBiStreams(ctx)
 	if err != nil {
 		fmt.Printf("err: %s\n", err.Error())
@@ -187,18 +201,39 @@ func helloBiStream(ctx context.Context, scanner *bufio.Scanner, client hellopb.G
 		}
 
 		// 受信処理
-		res, err := stream.Recv()
-		if err != nil {
-			if errors.Is(err, io.EOF) {
-				fmt.Println("all the responses have already received.")
-			} else {
-				fmt.Printf("err: %s\n", err.Error())
+		var (
+			headerMD metadata.MD
+			helloRes *hellopb.HelloResponse
+		)
+		if !recvEnd {
+			if headerMD == nil {
+				headerMD, err = stream.Header()
+				if err != nil {
+					fmt.Printf("err: %s\n", err.Error())
+				} else {
+					fmt.Printf("headerMD: %+v\n", headerMD)
+				}
 			}
-			return
+
+			res, err := stream.Recv()
+			if err != nil {
+				if errors.Is(err, io.EOF) {
+					fmt.Println("all the responses have already received.")
+					break
+				} else {
+					fmt.Printf("err: %s\n", err.Error())
+				}
+				return
+			}
+
+			helloRes = res
 		}
 
-		fmt.Printf("res: %s\n", res.GetMessage())
+		fmt.Printf("res: %s\n", helloRes.GetMessage())
 	}
+
+	trailerMD := stream.Trailer()
+	fmt.Printf("trailerMD: %+v\n", trailerMD)
 }
 
 func getInputString(scanner *bufio.Scanner) string {
